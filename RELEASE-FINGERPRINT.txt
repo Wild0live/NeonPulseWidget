@@ -2,7 +2,7 @@ NEONPULSE RELEASE MANIFEST FINGERPRINT
 ======================================
 
 SHA256 (SHA256SUMS.txt):
-C6BD685C3827CEF861F0F56815074C26F39C1729A58C55806CBBCAFDB1ECEF04
+D0F0B9FE1A5EEE6620E97CE2458CC3F1340D77A749897BB6042F3029B0AC0405
 
 Compare this value with the fingerprint published through the distributor's
 separate trusted release channel. A fingerprint bundled beside the manifest
