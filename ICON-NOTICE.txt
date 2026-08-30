@@ -1,0 +1,11 @@
+TECHNOLOGY ICON NOTICE
+======================
+
+The AMD and NVIDIA vector marks embedded in NeonPulseWidget.ps1 are sourced
+from the Simple Icons project (https://simpleicons.org), distributed under
+CC0 1.0. Brand names and logos remain trademarks of their respective owners.
+They are displayed only to identify hardware installed in the user's PC and
+do not imply endorsement or affiliation.
+
+The DDR4 DIMM, NVMe M.2, Ethernet, and Wi-Fi pictograms are original interface
+drawings included with this widget.

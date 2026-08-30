@@ -1,0 +1,69 @@
+NEONPULSE SECURITY NOTES
+========================
+
+Security modes
+--------------
+Default: Run Widget.cmd
+* Runs entirely as the current user.
+* Loads no hardware-access library or kernel driver.
+* CPU temperature displays NO SENSOR.
+
+Optional: Run Widget with CPU Temperature.cmd
+* Requires the separately installed official signed PawnIO edition.
+* Elevates only Temperature Helper.ps1; the widget UI remains non-admin.
+* The helper enables CPU sensors only and publishes temperature/package power
+  through a local short-lived data file under %LOCALAPPDATA%\NeonPulseWidget.
+* The helper exits when the widget heartbeat stops.
+
+The package contains no networking, downloading, telemetry, remote-control,
+encoded-command, Invoke-Expression, SYS driver, EXE, installer, service, or
+scheduled task. PawnIO is never installed or updated by the widget.
+
+Sensor-component controls
+-------------------------
+LibreHardwareMonitorLib was built from official source commit:
+  adf717d75a17f107629f63755f0e08b992e43ca9
+
+The build uses PawnIO and contains no WinRing0 code or driver. After UAC, the
+helper re-verifies the complete release, validates hard-coded SHA-256 hashes for
+all five sensor DLLs, reads them into memory, and loads those verified bytes.
+It does not add the widget directory to PATH or rely on normal DLL search.
+
+CPU samples are accepted by the UI only when the provider identifier matches,
+the timestamp is no more than five seconds old, and temperature/power values
+are within strict ranges. Cache contents are data only and are never executed.
+
+Dedicated GPU memory uses Windows performance counters bound to one adapter
+LUID. NVIDIA temperature and exact memory capacity use only
+%SystemRoot%\System32\nvidia-smi.exe after a valid Microsoft
+hardware-publisher or NVIDIA Authenticode signature is found. Other vendors
+degrade safely when an equivalent temperature source is unavailable.
+
+Integrity verification
+----------------------
+Every distributed file except RELEASE-FINGERPRINT.txt is listed in
+SHA256SUMS.txt. The verifier rejects missing, modified, malformed, duplicate,
+path-traversing, and unexpected executable/script files.
+
+Manual verification:
+  powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File ".\Verify Integrity.ps1"
+
+Checksums establish integrity relative to the supplied manifest, not publisher
+identity. Publish the SHA-256 of SHA256SUMS.txt separately and ideally
+Authenticode-sign the PowerShell scripts and archive.
+
+Expected local actions
+----------------------
+* Reads performance counters, WMI/CIM inventory, network and audio state.
+* Optionally reads CPU sensors through an installed PawnIO driver after UAC.
+* Changes audio settings or endpoints only after user interaction.
+* Opens Task Manager only after Ctrl+clicking the CPU card.
+* Writes settings, sensor cache/heartbeat, and an opt-in user Startup shortcut.
+* Does not transmit metrics or install software.
+
+Residual risk
+-------------
+PawnIO is a kernel driver and elevated hardware access always increases attack
+surface. The signed restricted edition and a minimal read-only helper reduce
+risk but cannot eliminate it. Users who prioritize minimum privilege should use
+the default launcher and accept NO SENSOR for CPU temperature.

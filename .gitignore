@@ -1,0 +1,18 @@
+# Generated release packages
+*.zip
+dist/
+release/
+
+# Local runtime state and diagnostics
+*.log
+*.tmp
+*.dmp
+settings.json
+sensor-cache.json
+sensor-heartbeat.txt
+
+# Editor and operating-system files
+.vs/
+.vscode/
+Thumbs.db
+.DS_Store

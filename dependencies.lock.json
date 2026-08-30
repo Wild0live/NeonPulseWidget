@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "dependencies": [
+    {
+      "file": "LibreHardwareMonitorLib.dll",
+      "version": "source commit adf717d75a17f107629f63755f0e08b992e43ca9",
+      "source": "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/tree/adf717d75a17f107629f63755f0e08b992e43ca9",
+      "license": "MPL-2.0",
+      "sha256": "F61C3A1B2FBC23B8A628711082BB571DBA22EB849283FA4B9FB0215B4FA0F6F9"
+    },
+    {
+      "file": "System.Buffers.dll",
+      "version": "4.6.1",
+      "source": "https://www.nuget.org/packages/System.Buffers/4.6.1",
+      "license": "MIT",
+      "sha256": "2D78D770C9CB997199154AE8C018B9F1D1EFBC86729F7264DDE6DBAD2A12CAC3"
+    },
+    {
+      "file": "System.Memory.dll",
+      "version": "4.6.3",
+      "source": "https://www.nuget.org/packages/System.Memory/4.6.3",
+      "license": "MIT",
+      "sha256": "D5E8E4866F9CFA66F7765660F84B210198893E55335487AFE5EBDA342C0E913D"
+    },
+    {
+      "file": "System.Numerics.Vectors.dll",
+      "version": "4.6.1",
+      "source": "https://www.nuget.org/packages/System.Numerics.Vectors/4.6.1",
+      "license": "MIT",
+      "sha256": "20C2FA81B8C70D651099D762954F285FD4F942E63B2D7217C145DAB8D4B2F4C9"
+    },
+    {
+      "file": "System.Runtime.CompilerServices.Unsafe.dll",
+      "version": "6.1.2",
+      "source": "https://www.nuget.org/packages/System.Runtime.CompilerServices.Unsafe/6.1.2",
+      "license": "MIT",
+      "sha256": "08CBD7278B66F1E68425A82D4B97181A4130D93E3DD91831407ABA7212CCDACF"
+    }
+  ]
+}

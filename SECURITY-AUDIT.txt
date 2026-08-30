@@ -1,0 +1,43 @@
+NEONPULSE WIDGET SECURITY AUDIT
+===============================
+
+Audit date: 2026-08-22
+
+Results
+-------
+PASS  Default widget launch is non-administrator and driver-free.
+PASS  Optional elevation is isolated to a CPU-sensor helper.
+PASS  PawnIO is separately installed, Microsoft hardware-publisher signed,
+      and not bundled or installed by the widget.
+PASS  LibreHardwareMonitor is pinned to official source commit
+      adf717d75a17f107629f63755f0e08b992e43ca9 and built for net472/x64.
+PASS  Source and output contain no WinRing0 reference or driver.
+PASS  Sensor DLLs are release-manifest checked, hard-hash pinned, and loaded
+      from verified byte arrays after elevation.
+PASS  CPU sensor test returned Ryzen 7 5700G Core (Tctl/Tdie) successfully.
+PASS  Main UI validates provider, freshness, temperature, and power ranges.
+PASS  Helper enables CPU monitoring only and exits after heartbeat loss.
+PASS  All PowerShell files parse with the Windows PowerShell AST.
+PASS  No network/download, telemetry, remote execution, encoded-command,
+      Invoke-Expression, ExecutionPolicy Bypass, bundled EXE/SYS, installer,
+      service, or scheduled-task behavior exists.
+PASS  Integrity verifier rejects modified and unexpected code files.
+PASS  GPU counters remain restricted to the selected Windows adapter LUID.
+
+Residual risks and limitations
+------------------------------
+* No finite review or antivirus scan proves the absence of every malicious
+  behavior or future vulnerability.
+* Optional CPU sensing uses a kernel driver and a minimal elevated process.
+* PowerShell scripts are not Authenticode-signed. Recipients should compare the
+  manifest fingerprint with a separately published trusted value.
+* SHA-256 detects changes relative to the supplied manifest; it does not prove
+  publisher identity if both files came from an attacker.
+* A clean Microsoft Defender result is evidence, not an absolute guarantee.
+
+Recommended release procedure
+-----------------------------
+1. Keep Run Widget.cmd as the recommended minimum-privilege default.
+2. Describe PawnIO installation as optional and never silently install it.
+3. Code-sign scripts/archive and publish the manifest fingerprint separately.
+4. Re-run build, parsing, sensor, tamper, and Defender tests for every release.

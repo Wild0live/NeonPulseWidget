@@ -1,0 +1,29 @@
+THIRD-PARTY COMPONENTS
+======================
+
+LibreHardwareMonitorLib.dll
+  Project: https://github.com/LibreHardwareMonitor/LibreHardwareMonitor
+  Source commit: adf717d75a17f107629f63755f0e08b992e43ca9
+  Corresponding source: https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/tree/adf717d75a17f107629f63755f0e08b992e43ca9
+  Target: net472, x64, Release
+  License: Mozilla Public License 2.0
+  License text: LICENSE-LibreHardwareMonitor.txt
+  This build uses LibreHardwareMonitor's PawnIO backend and contains no
+  WinRing0 driver or WinRing0 code path.
+  Exact binary and dependency hashes are recorded in dependencies.lock.json
+  in the source repository.
+
+Microsoft compatibility libraries
+  System.Memory 4.6.3
+  System.Runtime.CompilerServices.Unsafe 6.1.2
+  System.Buffers 4.6.1
+  System.Numerics.Vectors 4.6.1
+  Project: https://github.com/dotnet/maintenance-packages
+  License: MIT
+
+PawnIO
+  Project: https://pawnio.eu/
+  Installer: namazso.PawnIO 2.2.0 via Windows Package Manager
+  PawnIO is not bundled with this widget. Users who enable CPU temperature
+  install its official signed edition separately. The unrestricted unsigned
+  edition is not supported.
