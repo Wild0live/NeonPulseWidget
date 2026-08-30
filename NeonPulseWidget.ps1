@@ -112,6 +112,8 @@ public static class NeonAudio {
     static object meterInformationObject;
     static IAudioMeterInformation meterInformation;
     static string meterDeviceId = "";
+    public static bool LastPeakAvailable = false;
+    public static double LastPeakScalar = 0;
 
     [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
     class MMDeviceEnumeratorComObject { }
@@ -341,6 +343,7 @@ public static class NeonAudio {
         meterInformationObject = null; meterInformation = null;
         meterAudioClientObject = null; meterAudioClient = null;
         meterDevice = null; meterDeviceId = "";
+        LastPeakAvailable = false; LastPeakScalar = 0;
     }
 
     static bool EnsurePeakMeter(bool capture) {
@@ -394,6 +397,7 @@ public static class NeonAudio {
     public static int GetDefaultPeak(bool capture) {
         lock (MeterSync) {
             try {
+                LastPeakAvailable = false; LastPeakScalar = 0;
                 if (!EnsurePeakMeter(capture) || meterCaptureClient == null || meterInformation == null) return 0;
                 uint packetFrames;
                 while (meterCaptureClient.GetNextPacketSize(out packetFrames) == 0 && packetFrames > 0) {
@@ -403,8 +407,10 @@ public static class NeonAudio {
                 }
                 float peak;
                 if (meterInformation.GetPeakValue(out peak) != 0) return 0;
-                return (int)Math.Round(Math.Max(0, Math.Min(1, peak)) * 100);
-            } catch { ClosePeakMeterInternal(); return 0; }
+                double normalized = Math.Max(0, Math.Min(1, peak));
+                LastPeakScalar = normalized; LastPeakAvailable = true;
+                return (int)Math.Round(normalized * 100);
+            } catch { ClosePeakMeterInternal(); LastPeakAvailable = false; LastPeakScalar = 0; return 0; }
         }
     }
 
@@ -432,6 +438,87 @@ public static class NeonAudio {
         finally {
             if (endpointObject != null && Marshal.IsComObject(endpointObject)) Marshal.ReleaseComObject(endpointObject);
             if (device != null && Marshal.IsComObject(device)) Marshal.ReleaseComObject(device);
+            if (enumerator != null && Marshal.IsComObject(enumerator)) Marshal.ReleaseComObject(enumerator);
+        }
+    }
+
+    public static NeonAudioSnapshot[] GetCaptureSnapshots() {
+        IMMDeviceEnumerator enumerator = null;
+        IMMDeviceCollection collection = null;
+        var result = new List<NeonAudioSnapshot>();
+        try {
+            enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
+            if (enumerator.EnumAudioEndpoints(EDataFlow.Capture, 1, out collection) != 0 || collection == null)
+                return result.ToArray();
+            uint count;
+            if (collection.GetCount(out count) != 0) return result.ToArray();
+            for (uint index = 0; index < count; index++) {
+                IMMDevice device = null; object endpointObject = null;
+                try {
+                    if (collection.Item(index, out device) != 0 || device == null) continue;
+                    Guid iid = typeof(IAudioEndpointVolume).GUID;
+                    if (device.Activate(ref iid, 23, IntPtr.Zero, out endpointObject) != 0 || endpointObject == null) continue;
+                    IAudioEndpointVolume endpoint = (IAudioEndpointVolume)endpointObject;
+                    float scalar; bool muted;
+                    if (endpoint.GetMasterVolumeLevelScalar(out scalar) != 0) scalar = 0;
+                    if (endpoint.GetMute(out muted) != 0) muted = false;
+                    result.Add(new NeonAudioSnapshot { Available = true, Muted = muted, Volume = (int)Math.Round(Math.Max(0, Math.Min(1, scalar)) * 100), Name = GetFriendlyName(device) });
+                } finally {
+                    if (endpointObject != null && Marshal.IsComObject(endpointObject)) Marshal.ReleaseComObject(endpointObject);
+                    if (device != null && Marshal.IsComObject(device)) Marshal.ReleaseComObject(device);
+                }
+            }
+            return result.ToArray();
+        } catch { return result.ToArray(); }
+        finally {
+            if (collection != null && Marshal.IsComObject(collection)) Marshal.ReleaseComObject(collection);
+            if (enumerator != null && Marshal.IsComObject(enumerator)) Marshal.ReleaseComObject(enumerator);
+        }
+    }
+
+    public static NeonAudioSnapshot ToggleAllCaptureMute() {
+        IMMDeviceEnumerator enumerator = null;
+        IMMDeviceCollection collection = null;
+        try {
+            LastError = "";
+            enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
+            if (enumerator.EnumAudioEndpoints(EDataFlow.Capture, 1, out collection) != 0 || collection == null)
+                return GetDefault(true);
+            uint count;
+            if (collection.GetCount(out count) != 0 || count == 0) return GetDefault(true);
+
+            bool shouldMute = false;
+            for (uint index = 0; index < count; index++) {
+                IMMDevice device = null; object endpointObject = null;
+                try {
+                    if (collection.Item(index, out device) != 0 || device == null) continue;
+                    Guid iid = typeof(IAudioEndpointVolume).GUID;
+                    if (device.Activate(ref iid, 23, IntPtr.Zero, out endpointObject) != 0 || endpointObject == null) continue;
+                    bool muted;
+                    if (((IAudioEndpointVolume)endpointObject).GetMute(out muted) == 0 && !muted) { shouldMute = true; break; }
+                } finally {
+                    if (endpointObject != null && Marshal.IsComObject(endpointObject)) Marshal.ReleaseComObject(endpointObject);
+                    if (device != null && Marshal.IsComObject(device)) Marshal.ReleaseComObject(device);
+                }
+            }
+
+            Guid context = Guid.Empty;
+            for (uint index = 0; index < count; index++) {
+                IMMDevice device = null; object endpointObject = null;
+                try {
+                    if (collection.Item(index, out device) != 0 || device == null) continue;
+                    Guid iid = typeof(IAudioEndpointVolume).GUID;
+                    if (device.Activate(ref iid, 23, IntPtr.Zero, out endpointObject) != 0 || endpointObject == null) continue;
+                    ((IAudioEndpointVolume)endpointObject).SetMute(shouldMute, ref context);
+                } finally {
+                    if (endpointObject != null && Marshal.IsComObject(endpointObject)) Marshal.ReleaseComObject(endpointObject);
+                    if (device != null && Marshal.IsComObject(device)) Marshal.ReleaseComObject(device);
+                }
+            }
+            return GetDefault(true);
+        } catch (Exception ex) { LastError = ex.ToString(); return GetDefault(true); }
+        finally {
+            if (collection != null && Marshal.IsComObject(collection)) Marshal.ReleaseComObject(collection);
             if (enumerator != null && Marshal.IsComObject(enumerator)) Marshal.ReleaseComObject(enumerator);
         }
     }
@@ -1228,7 +1315,7 @@ function New-NetworkBlock {
     $micTextColumn=New-Object Windows.Controls.ColumnDefinition;$micTextColumn.Width='*';$micRow.ColumnDefinitions.Add($micTextColumn)
     $micValueColumn=New-Object Windows.Controls.ColumnDefinition;$micValueColumn.Width=78;$micRow.ColumnDefinitions.Add($micValueColumn)
     $micIcon=New-VectorIcon 'MIC' $Lime 34;$micIcon.Margin='0,0,8,0'
-    $micMuteButton=New-Object Windows.Controls.Button;$micMuteButton.Template=$flatButtonTemplate;$micMuteButton.Background=Brush '#01000000';$micMuteButton.BorderThickness=0;$micMuteButton.Padding=0;$micMuteButton.Cursor='Hand';$micMuteButton.Focusable=$false;$micMuteButton.ToolTip='Click to mute or unmute the default microphone';$micMuteButton.Content=$micIcon
+    $micMuteButton=New-Object Windows.Controls.Button;$micMuteButton.Template=$flatButtonTemplate;$micMuteButton.Background=Brush '#01000000';$micMuteButton.BorderThickness=0;$micMuteButton.Padding=0;$micMuteButton.Cursor='Hand';$micMuteButton.Focusable=$false;$micMuteButton.ToolTip='Click to mute or unmute all active microphones';$micMuteButton.Content=$micIcon
     $micText=New-Object Windows.Controls.StackPanel;$micTitle=New-Text 'MICROPHONE' 14 $Lime 'SemiBold';$micTitle.HorizontalAlignment='Left';$micTitle.Cursor='Hand';$micTitle.ToolTip='Click to switch to the next available microphone'
     $micDevice=New-Text 'DEFAULT DEVICE' 12 $Muted 'SemiBold';$micDevice.HorizontalAlignment='Stretch';$micDevice.TextAlignment='Left';$micDevice.TextTrimming='CharacterEllipsis';$micDevice.TextWrapping='NoWrap';$micDevice.Cursor='Hand';$micDevice.ToolTip='Click to switch to the next available microphone'
     $micSwitchStack=New-Object Windows.Controls.StackPanel;$micSwitchStack.Children.Add($micTitle)|Out-Null;$micSwitchStack.Children.Add($micDevice)|Out-Null
@@ -1609,9 +1696,29 @@ $clockStat=New-StatBlock 'CPU CLOCK' 'CLOCK' '--' 'GHz' $Cyan
 $vramStat=New-StatBlock 'GPU VRAM' 'VRAM' '--' 'GB' $Cyan
 $netStat=New-NetworkBlock
 $script:MicrophoneMuted=$false
+$script:MicrophoneWindowsMuted=$false
+$script:MicrophoneHardwareMuteInferred=$false
+$script:MicrophoneDigitalSilenceSince=[DateTime]::MinValue
+$script:MicrophoneHardwareMuteDelaySeconds=.9
 $script:MicrophoneMeterAvailable=$false
 $script:MicrophoneDisplayedPeak=0.0
-function Update-MicrophoneSignal([double]$rawPeak) {
+function Update-MicrophoneSignal([double]$rawPeak,[bool]$evaluateHardwareMute=$true,[bool]$meterAvailable=$true,[double]$exactPeak=-1) {
+    if($evaluateHardwareMute){
+        $wasHardwareMuted=$script:MicrophoneHardwareMuteInferred
+        if(-not $meterAvailable -or $script:MicrophoneWindowsMuted){
+            $script:MicrophoneDigitalSilenceSince=[DateTime]::MinValue
+            $script:MicrophoneHardwareMuteInferred=$false
+        }elseif($exactPeak -ge 0 -and $exactPeak -le .0000001){
+            if($script:MicrophoneDigitalSilenceSince -eq [DateTime]::MinValue){$script:MicrophoneDigitalSilenceSince=[DateTime]::UtcNow}
+            if(([DateTime]::UtcNow-$script:MicrophoneDigitalSilenceSince).TotalSeconds -ge $script:MicrophoneHardwareMuteDelaySeconds){$script:MicrophoneHardwareMuteInferred=$true}
+        }else{
+            $script:MicrophoneDigitalSilenceSince=[DateTime]::MinValue
+            $script:MicrophoneHardwareMuteInferred=$false
+        }
+        if($wasHardwareMuted -ne $script:MicrophoneHardwareMuteInferred){
+            try{Update-MicrophonePanel ([NeonAudio]::GetDefault($true))}catch{}
+        }
+    }
     if(-not $script:MicrophoneMeterAvailable -or $script:MicrophoneMuted){$target=0.0}else{$target=[math]::Max(0,[math]::Min(100,$rawPeak))}
     if($target -ge $script:MicrophoneDisplayedPeak){$script:MicrophoneDisplayedPeak=$target}else{$script:MicrophoneDisplayedPeak=[math]::Max(0,$script:MicrophoneDisplayedPeak*.72)}
     $display=[int][math]::Round($script:MicrophoneDisplayedPeak)
@@ -1636,22 +1743,25 @@ function Update-MicrophonePanel($microphone) {
     $script:UpdatingAudioSliders=$true
     try{$netStat.MicSlider.IsEnabled=$microphone.Available;if($microphone.Available){$netStat.MicSlider.Value=$microphone.Volume};$netStat.MicSlider.ToolTip=('Microphone input level: {0}%' -f $microphone.Volume)}finally{$script:UpdatingAudioSliders=$false}
     $script:MicrophoneMeterAvailable=$microphone.Available
-    $script:MicrophoneMuted=(-not $microphone.Available -or $microphone.Muted -or $microphone.Volume -le 0)
-    if($script:MicrophoneMuted){Update-MicrophoneSignal 0}
+    $script:MicrophoneWindowsMuted=(-not $microphone.Available -or $microphone.Muted -or $microphone.Volume -le 0)
+    $script:MicrophoneMuted=($script:MicrophoneWindowsMuted -or $script:MicrophoneHardwareMuteInferred)
+    if($script:MicrophoneMuted){Update-MicrophoneSignal 0 $false}
+    $netStat.MicValue.FontSize=17.5;$netStat.MicValue.ToolTip=$null
     if(-not $microphone.Available){$netStat.MicValue.Text='OFFLINE';$netStat.MicValue.Foreground=$Muted;Set-DeviceIconState $netStat.MicIcon 'Offline' $Lime}
     elseif($microphone.Muted -or $microphone.Volume -le 0){$netStat.MicValue.Text='MUTED';$netStat.MicValue.Foreground=$WarningRed;Set-DeviceIconState $netStat.MicIcon 'Muted' $Lime}
+    elseif($script:MicrophoneHardwareMuteInferred){$netStat.MicValue.FontSize=13.5;$netStat.MicValue.Text='HW MUTED';$netStat.MicValue.Foreground=$WarningRed;$netStat.MicValue.ToolTip='The microphone is enabled in Windows but its capture stream is sustained digital silence. This usually indicates a physical or firmware mute.';Set-DeviceIconState $netStat.MicIcon 'Muted' $Lime}
     else{$netStat.MicValue.Text=('{0}%' -f $microphone.Volume);$netStat.MicValue.Foreground=$Lime;Set-DeviceIconState $netStat.MicIcon 'Active' $Lime}
 }
 $netStat.SpeakerButton.Add_Click({
     try {Update-SpeakerPanel ([NeonAudio]::ToggleDefaultMute($false))} catch {}
 })
 $netStat.MicButton.Add_Click({
-    try {Update-MicrophonePanel ([NeonAudio]::ToggleDefaultMute($true))} catch {}
+    try {Update-MicrophonePanel ([NeonAudio]::ToggleAllCaptureMute())} catch {}
 })
 $netStat.SpeakerValue.Cursor='Hand';$netStat.SpeakerValue.ToolTip='Click to mute or unmute the default audio output'
 $netStat.MicValue.Cursor='Hand';$netStat.MicValue.ToolTip='Click to mute or unmute the default microphone'
 $netStat.SpeakerValue.Add_PreviewMouseLeftButtonDown({$_.Handled=$true;try{Update-SpeakerPanel ([NeonAudio]::ToggleDefaultMute($false))}catch{}})
-$netStat.MicValue.Add_PreviewMouseLeftButtonDown({$_.Handled=$true;try{Update-MicrophonePanel ([NeonAudio]::ToggleDefaultMute($true))}catch{}})
+$netStat.MicValue.Add_PreviewMouseLeftButtonDown({$_.Handled=$true;try{Update-MicrophonePanel ([NeonAudio]::ToggleAllCaptureMute())}catch{}})
 $netStat.SpeakerSlider.Add_ValueChanged({
     if($script:UpdatingAudioSliders){return}
     try{Update-SpeakerPanel ([NeonAudio]::SetDefaultVolume($false,[int][math]::Round($this.Value)))}catch{}
@@ -1664,7 +1774,7 @@ $netStat.SpeakerSwitchButton.Add_Click({try{Update-SpeakerPanel ([NeonAudio]::Cy
 $netStat.MicSwitchButton.Add_Click({try{Update-MicrophonePanel ([NeonAudio]::CycleDefault($true))}catch{}})
 $audioMeterTimer=New-Object Windows.Threading.DispatcherTimer
 $audioMeterTimer.Interval=[TimeSpan]::FromMilliseconds(120)
-$audioMeterTimer.Add_Tick({if($window.IsVisible){try{Update-MicrophoneSignal ([NeonAudio]::GetDefaultPeak($true))}catch{Update-MicrophoneSignal 0}}})
+$audioMeterTimer.Add_Tick({if($window.IsVisible){try{$peak=[NeonAudio]::GetDefaultPeak($true);Update-MicrophoneSignal $peak $true ([NeonAudio]::LastPeakAvailable) ([NeonAudio]::LastPeakScalar)}catch{Update-MicrophoneSignal 0 $true $false -1}}})
 [Windows.Controls.Grid]::SetColumn($clockStat.Root,0); $bottomGrid.Children.Add($clockStat.Root)|Out-Null
 [Windows.Controls.Grid]::SetColumn($vramStat.Root,1); $bottomGrid.Children.Add($vramStat.Root)|Out-Null
 [Windows.Controls.Grid]::SetColumn($netStat.Root,2); [Windows.Controls.Grid]::SetColumnSpan($netStat.Root,2); $bottomGrid.Children.Add($netStat.Root)|Out-Null
@@ -1736,8 +1846,8 @@ $timer.Add_Tick({
             $reportedLimitGB=[math]::Round($script:Hardware.GpuRam/1GB,1)
             $dedicatedLimitGB=if($script:NvidiaDedicatedLimitGB -gt 0){$script:NvidiaDedicatedLimitGB}elseif($reportedLimitGB -ge $gpuSample.UsedGB -and $reportedLimitGB -gt 0){$reportedLimitGB}else{[math]::Pow(2,[math]::Ceiling([math]::Log([math]::Max(1,$gpuSample.UsedGB),2)))}
             $dedicatedPercent=[math]::Min(100,[math]::Max(0,$gpuSample.UsedGB/$dedicatedLimitGB*100))
-            Set-Gauge $gpu $dedicatedPercent ('{0:N1}' -f $gpuSample.UsedGB) 'GB'
-            $gpu.Value.ToolTip=("{0} dedicated GPU memory`nUsed: {1:N2} GB`nCapacity: {2:N1} GB" -f $script:Hardware.GpuFullName,$gpuSample.UsedGB,$dedicatedLimitGB)
+            Set-Gauge $gpu $dedicatedPercent ([math]::Round($dedicatedPercent).ToString()) '%'
+            $gpu.Value.ToolTip=("{0} dedicated GPU memory`nUsage: {1:N1}%`nUsed: {2:N2} GB of {3:N1} GB" -f $script:Hardware.GpuFullName,$dedicatedPercent,$gpuSample.UsedGB,$dedicatedLimitGB)
         }else{Set-Gauge $gpu 0 'N/A' ''}
         Set-Gauge $ram $mem.Percent ([math]::Round($mem.Percent).ToString()); $ram.FooterValue.Text=("{0} GB" -f $mem.UsedGB)
         $diskActive=if($script:DiskActiveCounter){[math]::Min(100,[math]::Max(0,$script:DiskActiveCounter.NextValue()))}else{0}
