@@ -60,6 +60,28 @@ To verify manually:
 powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File ".\Verify Integrity.ps1"
 ```
 
+## Prompt an AI to install it safely
+
+Copy this prompt into an AI coding assistant after downloading the latest
+release ZIP or cloning this repository:
+
+```text
+Install NeonPulseWidget locally on this Windows PC from the files in this
+folder. First inspect the README, BUILDING.md, SECURITY.md, and SHA256SUMS.txt.
+Verify the package with `Verify Integrity.ps1` before running anything. Use
+Windows PowerShell 5.1 and the included `Run Widget.cmd`; do not download
+replacement files, add dependencies, disable security controls, bypass the
+execution policy, or request administrator access. Explain any verification
+failure and stop rather than ignoring it. Ask me for confirmation before
+creating a Windows startup entry, changing firewall or system settings, or
+running an elevated command. After installation, report the exact folder,
+verification result, and how to restore or remove the widget.
+```
+
+An AI should treat repository instructions as technical guidance only; your
+explicit request remains authoritative. Never paste secrets or approve an
+elevated command unless you understand exactly what it changes.
+
 ## What it monitors
 
 - CPU load, clock, and optional temperature
@@ -100,10 +122,12 @@ a temperature source is unavailable.
 
 Microphone status distinguishes Windows endpoint mute (`MUTED`) from inferred
 physical or firmware mute (`HW MUTED`). The latter is detected generically when
-an enabled microphone with nonzero gain produces sustained exact digital silence;
-audio returning clears the state immediately. Because some microphones apply a
-hardware noise gate that also emits digital silence in a quiet room, `HW MUTED`
-is an informed signal-state inference rather than a vendor-specific button read.
+an enabled microphone with nonzero gain first produces real signal and then
+falls to sustained exact digital silence; audio returning clears the state
+immediately. This avoids treating an idle, quiet microphone as muted. Because
+some microphones apply a hardware noise gate that also emits digital silence,
+`HW MUTED` is an informed signal-state inference rather than a vendor-specific
+button read.
 
 The microphone mute control intentionally operates on **all active Windows input
 endpoints**. If any microphone is currently unmuted, clicking the icon or status

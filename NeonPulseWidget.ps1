@@ -1700,6 +1700,8 @@ $script:MicrophoneWindowsMuted=$false
 $script:MicrophoneHardwareMuteInferred=$false
 $script:MicrophoneDigitalSilenceSince=[DateTime]::MinValue
 $script:MicrophoneHardwareMuteDelaySeconds=.9
+$script:MicrophoneSignalObservedSinceUnmute=$false
+$script:MicrophoneSignalDeviceName=''
 $script:MicrophoneMeterAvailable=$false
 $script:MicrophoneDisplayedPeak=0.0
 function Update-MicrophoneSignal([double]$rawPeak,[bool]$evaluateHardwareMute=$true,[bool]$meterAvailable=$true,[double]$exactPeak=-1) {
@@ -1708,7 +1710,14 @@ function Update-MicrophoneSignal([double]$rawPeak,[bool]$evaluateHardwareMute=$t
         if(-not $meterAvailable -or $script:MicrophoneWindowsMuted){
             $script:MicrophoneDigitalSilenceSince=[DateTime]::MinValue
             $script:MicrophoneHardwareMuteInferred=$false
-        }elseif($exactPeak -ge 0 -and $exactPeak -le .0000001){
+            $script:MicrophoneSignalObservedSinceUnmute=$false
+        }elseif($exactPeak -ge 0 -and $exactPeak -gt .0000001){
+            # Only infer a hardware mute after this unmute cycle has produced
+            # real signal. Quiet/idle capture alone is not evidence of mute.
+            $script:MicrophoneSignalObservedSinceUnmute=$true
+            $script:MicrophoneDigitalSilenceSince=[DateTime]::MinValue
+            $script:MicrophoneHardwareMuteInferred=$false
+        }elseif($exactPeak -ge 0 -and $exactPeak -le .0000001 -and $script:MicrophoneSignalObservedSinceUnmute){
             if($script:MicrophoneDigitalSilenceSince -eq [DateTime]::MinValue){$script:MicrophoneDigitalSilenceSince=[DateTime]::UtcNow}
             if(([DateTime]::UtcNow-$script:MicrophoneDigitalSilenceSince).TotalSeconds -ge $script:MicrophoneHardwareMuteDelaySeconds){$script:MicrophoneHardwareMuteInferred=$true}
         }else{
@@ -1738,12 +1747,23 @@ function Update-SpeakerPanel($speaker) {
     else{$netStat.SpeakerValue.Text=('{0}%' -f $speaker.Volume);$netStat.SpeakerValue.Foreground=$White;Set-DeviceIconState $netStat.SpeakerIcon 'Active' $Cyan}
 }
 function Update-MicrophonePanel($microphone) {
+    if($script:MicrophoneSignalDeviceName -ne [string]$microphone.Name){
+        $script:MicrophoneSignalDeviceName=[string]$microphone.Name
+        $script:MicrophoneSignalObservedSinceUnmute=$false
+        $script:MicrophoneDigitalSilenceSince=[DateTime]::MinValue
+        $script:MicrophoneHardwareMuteInferred=$false
+    }
     $netStat.MicDevice.Text=Get-AudioDeviceLabel $microphone.Name $true
     $netStat.MicDevice.ToolTip=if($microphone.Name){$microphone.Name+"`nClick to switch to the next available microphone"}else{'No microphone available'}
     $script:UpdatingAudioSliders=$true
     try{$netStat.MicSlider.IsEnabled=$microphone.Available;if($microphone.Available){$netStat.MicSlider.Value=$microphone.Volume};$netStat.MicSlider.ToolTip=('Microphone input level: {0}%' -f $microphone.Volume)}finally{$script:UpdatingAudioSliders=$false}
     $script:MicrophoneMeterAvailable=$microphone.Available
     $script:MicrophoneWindowsMuted=(-not $microphone.Available -or $microphone.Muted -or $microphone.Volume -le 0)
+    if($script:MicrophoneWindowsMuted){
+        $script:MicrophoneSignalObservedSinceUnmute=$false
+        $script:MicrophoneDigitalSilenceSince=[DateTime]::MinValue
+        $script:MicrophoneHardwareMuteInferred=$false
+    }
     $script:MicrophoneMuted=($script:MicrophoneWindowsMuted -or $script:MicrophoneHardwareMuteInferred)
     if($script:MicrophoneMuted){Update-MicrophoneSignal 0 $false}
     $netStat.MicValue.FontSize=17.5;$netStat.MicValue.ToolTip=$null
