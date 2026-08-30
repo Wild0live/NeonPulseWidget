@@ -44,6 +44,9 @@ optional hardware-specific feature; see [Optional CPU temperature](#optional-cpu
 
 ## Quick start
 
+For a dedicated, copy-pasteable AI-assisted installation prompt and safety
+checklist, see [AI-INSTALL-PROMPT.md](AI-INSTALL-PROMPT.md).
+
 1. Download the ZIP from the latest GitHub Release rather than the automatically
    generated repository source archive.
 2. Extract the complete ZIP to a writable folder. Do not run individual files
